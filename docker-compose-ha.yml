@@ -1,0 +1,125 @@
+version: '2'
+
+networks:
+  consul_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      -
+        subnet: 172.16.238.0/24
+
+services:
+
+  consul:
+    image: "consul"
+    hostname: "consul"
+    command: "agent -dev -client 0.0.0.0"
+    networks:
+      consul_net:
+        ipv4_address: 172.16.238.10    
+    ports:
+      - "8301:8300"
+      - "8401:8400"
+      - "8501:8500"
+      - "8601:8600"
+      - "9001:9001"
+    environment:
+      - CONSUL_OPTS=-bootstrap-expect=3
+        
+
+  consul_bravo:
+    image: "consul"
+    hostname: "consul_bravo"
+    command: "agent -dev -client 0.0.0.0"
+    networks:
+      consul_net:
+        ipv4_address: 172.16.238.11
+    ports:
+      - "8302:8300"
+      - "8402:8400"
+      - "8502:8500"
+      - "8602:8600"
+      - "9002:9001"
+    environment:
+      - CONSUL_OPTS=-join 172.16.10
+  
+  consul_charlie:
+    image: "consul"
+    hostname: "consul_charlie"
+    command: "agent -dev -client 0.0.0.0"
+    networks:
+      consul_net:
+        ipv4_address: 172.16.238.12
+    ports:
+      - "8303:8300"
+      - "8403:8400"
+      - "8503:8500"
+      - "8603:8600"
+      - "9003:9001"
+    environment:
+      - CONSUL_OPTS=-join 172.16.10
+  
+
+  vault_alpha:
+    depends_on:
+      - consul
+      - consul_bravo
+      - consul_charlie
+    image: "vault"
+    hostname: "vault_alpha"
+    networks:
+      consul_net:
+        ipv4_address: 172.16.238.21
+    environment:
+      VAULT_ADDR: http://172.16.238.21:8200
+      VAULT_CLUSTER_ADDR: https://172.16.238.21:8200
+    ports:
+      - "8201:8200"
+    volumes:
+      - ./tools/wait-for-it.sh:/wait-for-it.sh
+      - ./config/vault:/config
+      - ./config/vault/policies:/policies
+    entrypoint: /wait-for-it.sh -t 20 -h consul -p 8500 -s -- vault server -config=/config/with-consul.hcl
+
+  vault_bravo:
+    depends_on:
+      - consul
+      - consul_bravo
+      - consul_charlie
+    image: "vault"
+    hostname: "vault_bravo"
+    networks:
+      consul_net:
+        ipv4_address: 172.16.238.22
+    environment:
+      VAULT_ADDR: http://172.16.238.22:8200
+      VAULT_CLUSTER_ADDR: https://172.16.238.22:8200
+    ports:
+      - "8202:8200"
+    volumes:
+      - ./tools/wait-for-it.sh:/wait-for-it.sh
+      - ./config/vault:/config
+      - ./config/vault/policies:/policies
+    entrypoint: /wait-for-it.sh -t 20 -h consul -p 8500 -s -- vault server -config=/config/with-consul.hcl
+
+  vault_charlie:
+    depends_on:
+      - consul
+      - consul_bravo
+      - consul_charlie
+    image: "vault"
+    hostname: "vault_charlie"
+    networks:
+      consul_net:
+        ipv4_address: 172.16.238.23
+    environment:
+      VAULT_ADDR: http://172.16.238.23:8200
+      VAULT_CLUSTER_ADDR: https://172.16.238.23:8200
+    ports:
+      - "8203:8200"
+    volumes:
+      - ./tools/wait-for-it.sh:/wait-for-it.sh
+      - ./config/vault:/config
+      - ./config/vault/policies:/policies
+    entrypoint: /wait-for-it.sh -t 20 -h consul -p 8500 -s -- vault server -config=/config/with-consul.hcl
